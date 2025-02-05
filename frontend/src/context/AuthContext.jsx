@@ -10,7 +10,8 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      // TODO: Add endpoint to verify token and get user data
+      // Set a basic user object if token exists
+      setUser({ email: 'test@example.com' }); // Temporary solution
       setLoading(false);
     } else {
       setLoading(false);
@@ -21,7 +22,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
+      setUser({ email: email }); // Set user data after successful login
       return response.data;
     } catch (error) {
       throw error;
@@ -32,7 +33,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/register', { email, password });
       localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
+      setUser({ email: email }); // Set user data after successful registration
       return response.data;
     } catch (error) {
       throw error;
@@ -43,6 +44,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     setUser(null);
   };
+
+  console.log('Current user:', user); // Add this line for debugging
 
   const value = {
     user,
