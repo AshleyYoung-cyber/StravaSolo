@@ -1,32 +1,22 @@
-const { Model, DataTypes } = require('sequelize');
+const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  class Goal extends Model {}
-
-  Goal.init({
+  const Goal = sequelize.define('Goal', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
-    },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: {
-        model: 'Users',
-        key: 'id'
-      }
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
     type: {
-      type: DataTypes.ENUM('distance', 'pace', 'frequency'),
+      type: DataTypes.ENUM('DISTANCE', 'FREQUENCY', 'PACE', 'TIME'),
       allowNull: false
     },
     target: {
-      type: DataTypes.FLOAT,
+      type: DataTypes.INTEGER,
       allowNull: false
     },
     timeframe: {
-      type: DataTypes.ENUM('daily', 'weekly', 'monthly', 'custom'),
+      type: DataTypes.ENUM('DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'),
       allowNull: false
     },
     startDate: {
@@ -34,20 +24,14 @@ module.exports = (sequelize) => {
       allowNull: false
     },
     endDate: {
-      type: DataTypes.DATE
-    },
-    progress: {
-      type: DataTypes.FLOAT,
-      defaultValue: 0
+      type: DataTypes.DATE,
+      allowNull: false
     },
     status: {
-      type: DataTypes.ENUM('active', 'completed', 'failed'),
-      defaultValue: 'active'
+      type: DataTypes.ENUM('NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'FAILED'),
+      allowNull: false,
+      defaultValue: 'NOT_STARTED'
     }
-  }, {
-    sequelize,
-    modelName: 'Goal',
-    timestamps: true
   });
 
   return Goal;

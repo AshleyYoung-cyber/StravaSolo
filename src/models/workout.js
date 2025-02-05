@@ -1,41 +1,28 @@
-const { Model, DataTypes } = require('sequelize');
+const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  class Workout extends Model {}
-
-  Workout.init({
+  const Workout = sequelize.define('Workout', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
-    },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: {
-        model: 'Users',
-        key: 'id'
-      }
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
     name: {
       type: DataTypes.STRING,
       allowNull: false
     },
-    type: {
-      type: DataTypes.ENUM('interval', 'tempo', 'distance', 'time'),
-      allowNull: false
-    },
     description: {
-      type: DataTypes.TEXT
+      type: DataTypes.TEXT,
+      allowNull: true
     },
-    plan: {
-      type: DataTypes.JSONB,
+    type: {
+      type: DataTypes.ENUM('INTERVAL', 'STEADY', 'TEMPO', 'FARTLEK'),
       allowNull: false
+    },
+    plannedDistance: {
+      type: DataTypes.INTEGER, // in meters
+      allowNull: true
     }
-  }, {
-    sequelize,
-    modelName: 'Workout',
-    timestamps: true
   });
 
   return Workout;

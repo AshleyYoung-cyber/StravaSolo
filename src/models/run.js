@@ -1,54 +1,36 @@
-const { Model, DataTypes } = require('sequelize');
+const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  class Run extends Model {}
-
-  Run.init({
+  const Run = sequelize.define('Run', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
-    userId: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: {
-        model: 'Users',
-        key: 'id'
-      }
+    distance: {
+      type: DataTypes.INTEGER, // in meters
+      allowNull: false
     },
-    startTime: {
+    duration: {
+      type: DataTypes.INTEGER, // in seconds
+      allowNull: false
+    },
+    date: {
       type: DataTypes.DATE,
       allowNull: false
     },
-    endTime: {
-      type: DataTypes.DATE
+    averagePace: {
+      type: DataTypes.INTEGER, // seconds per km
+      allowNull: false
     },
-    distance: {
-      type: DataTypes.FLOAT
+    calories: {
+      type: DataTypes.INTEGER,
+      allowNull: false
     },
-    duration: {
-      type: DataTypes.INTEGER
-    },
-    pace: {
-      type: DataTypes.FLOAT
-    },
-    route: {
-      type: DataTypes.JSONB
-    },
-    elevation: {
-      type: DataTypes.JSONB
-    },
-    weatherData: {
-      type: DataTypes.JSONB
-    },
-    stats: {
-      type: DataTypes.JSONB
+    notes: {
+      type: DataTypes.TEXT,
+      allowNull: true
     }
-  }, {
-    sequelize,
-    modelName: 'Run',
-    timestamps: true
   });
 
   return Run;
