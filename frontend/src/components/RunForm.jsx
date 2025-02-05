@@ -1,18 +1,31 @@
 import { useState } from 'react';
-import { Modal, TextInput, NumberInput, Button, Group, Select, Text, ScrollArea } from '@mantine/core';
-import { Calendar } from '@mantine/dates';
+import { Modal, TextInput, NumberInput, Button, Group, NativeSelect, Text } from '@mantine/core';
+import { DatePicker } from '@mantine/dates';
 
 export default function RunForm({ opened, onClose, onSubmit }) {
-  console.log('New RunForm rendering...');  // Debug log
-  
+  console.log('RunForm rendering'); // Debug log
+
   const [formData, setFormData] = useState({
     distance: '',
     duration: '',
     date: new Date(),
     time: '07:00',
-    type: 'EASY',
+    type: 'Easy Run',
     notes: ''
   });
+
+  // Debug log current state
+  console.log('Current formData:', formData);
+
+  const handleDateChange = (newDate) => {
+    console.log('Date change attempted:', newDate); // Debug log
+    if (newDate) {
+      setFormData(prev => {
+        console.log('Updating date from', prev.date, 'to', newDate); // Debug log
+        return { ...prev, date: newDate };
+      });
+    }
+  };
 
   const handleDurationChange = (e) => {
     let { value } = e.target;
@@ -32,31 +45,46 @@ export default function RunForm({ opened, onClose, onSubmit }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    let duration = formData.duration;
-    if (duration) {
-      const numbers = duration.replace(/\D/g, '');
-      const parts = [
-        numbers.slice(0, 2) || '00',
-        numbers.slice(2, 4) || '00',
-        numbers.slice(4, 6) || '00'
-      ];
-      duration = parts.join(':');
+
+    try {
+      // Validate required fields
+      if (!formData.distance || !formData.duration || !formData.date) {
+        throw new Error('Please fill in all required fields');
+      }
+
+      // Convert HH:MM:SS to seconds
+      const durationParts = formData.duration.split(':').map(Number);
+      if (durationParts.length !== 3) {
+        throw new Error('Invalid duration format');
+      }
+      
+      const durationInSeconds = durationParts[0] * 3600 + 
+                              durationParts[1] * 60 + 
+                              durationParts[2];
+
+      // Calculate average pace (seconds per km)
+      const averagePaceInSeconds = Math.round(durationInSeconds / formData.distance);
+
+      // Estimate calories (rough estimate: 60 calories per km)
+      const estimatedCalories = Math.round(formData.distance * 60);
+
+      const formattedData = {
+        distance: Number(formData.distance),
+        duration: durationInSeconds,
+        date: formData.date.toISOString().split('T')[0],
+        time: formData.time || '07:00',
+        type: formData.type.toUpperCase().replace(' ', '_'),
+        notes: formData.notes || '',
+        averagePace: averagePaceInSeconds,
+        calories: estimatedCalories
+      };
+
+      console.log('Formatted data for submission:', formattedData);
+      onSubmit(formattedData);
+    } catch (error) {
+      console.error('Form validation error:', error);
+      // You can show an error notification here if you want
     }
-    
-    onSubmit({
-      ...formData,
-      duration
-    });
-    
-    setFormData({
-      distance: '',
-      duration: '',
-      date: new Date(),
-      time: '07:00',
-      type: 'EASY',
-      notes: ''
-    });
-    onClose();
   };
 
   return (
@@ -65,17 +93,17 @@ export default function RunForm({ opened, onClose, onSubmit }) {
       onClose={onClose} 
       title="Add New Run"
       size="xl"
-      withinPortal={false}
       styles={{
-        inner: {
-          padding: '20px'
+        header: { marginBottom: 0, paddingBottom: 0 },
+        close: {
+          width: '30px',
+          height: '30px',
+          position: 'absolute',
+          top: '10px',
+          right: '10px'
         },
-        content: {
-          maxHeight: '90vh'
-        },
-        body: {
-          padding: '20px'
-        }
+        content: { maxHeight: '80vh', overflowY: 'auto' },
+        body: { padding: '20px' }
       }}
     >
       <form onSubmit={handleSubmit}>
@@ -108,14 +136,20 @@ export default function RunForm({ opened, onClose, onSubmit }) {
               mb="md"
             />
 
-            <Text size="sm" weight={500} mb={3}>Date</Text>
-            <Calendar
-              value={formData.date}
-              onChange={(value) => setFormData({ ...formData, date: value })}
-              maxDate={new Date()}
-              size="sm"
-              mb="md"
-            />
+            <div>
+              <Text size="sm" weight={500} mb={3}>Date</Text>
+              <DatePicker
+                value={formData.date}
+                onChange={handleDateChange}
+                maxDate={new Date()}
+                clearable={false}
+                defaultValue={new Date()}
+                mb="md"
+              />
+              <Text size="xs" color="dimmed">
+                Selected: {formData.date?.toLocaleDateString()}
+              </Text>
+            </div>
           </div>
 
           <div style={{ flex: 1 }}>
@@ -128,19 +162,17 @@ export default function RunForm({ opened, onClose, onSubmit }) {
               mb="md"
             />
             
-            <Select
+            <NativeSelect
               label="Type"
-              placeholder="Pick one"
               data={[
-                { value: 'EASY', label: 'Easy Run' },
-                { value: 'TEMPO', label: 'Tempo Run' },
-                { value: 'LONG', label: 'Long Run' },
-                { value: 'RACE', label: 'Race' }
+                'Easy Run',
+                'Tempo Run',
+                'Long Run',
+                'Race'
               ]}
               value={formData.type}
-              onChange={(value) => setFormData({ ...formData, type: value })}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
               mb="md"
-              withinPortal={true}
             />
             
             <TextInput
@@ -153,11 +185,11 @@ export default function RunForm({ opened, onClose, onSubmit }) {
           </div>
         </div>
 
-        <Group justify="flex-end" mt="xl">
+        <Group justify="flex-end">
           <Button variant="light" onClick={onClose}>Cancel</Button>
           <Button type="submit">Save Run</Button>
         </Group>
       </form>
     </Modal>
   );
-} 
+}
