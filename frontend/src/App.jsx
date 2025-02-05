@@ -4,6 +4,9 @@ import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Runs from './pages/Runs';
+import Workouts from './pages/Workouts';
+import Goals from './pages/Goals';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -19,6 +22,30 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/runs"
+              element={
+                <ProtectedRoute>
+                  <Runs />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/workouts"
+              element={
+                <ProtectedRoute>
+                  <Workouts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/goals"
+              element={
+                <ProtectedRoute>
+                  <Goals />
                 </ProtectedRoute>
               }
             />
