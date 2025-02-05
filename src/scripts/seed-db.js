@@ -93,6 +93,7 @@ async function seedDatabase() {
     console.log('Database seeded successfully!');
   } catch (error) {
     console.error('Error seeding database:', error);
+    console.error('Full error details:', JSON.stringify(error, null, 2));
     process.exit(1);
   } finally {
     await sequelize.close();
