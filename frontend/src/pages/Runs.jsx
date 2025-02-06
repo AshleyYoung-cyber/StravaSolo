@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { AppShell, Container, Title, Button, Group, Text, LoadingOverlay } from '@mantine/core';
+import { AppShell, Container, Title, Button, Group, Table, Text, LoadingOverlay } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import RunForm from '../components/RunForm';
 import { runService } from '../services/runService';
@@ -9,7 +10,7 @@ export default function Runs() {
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formOpened, setFormOpened] = useState(false);
-  console.log('Runs rendered, formOpened:', formOpened);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadRuns();
@@ -33,27 +34,20 @@ export default function Runs() {
 
   const handleSubmit = async (formData) => {
     try {
-      console.log('Attempting to create run with data:', formData);
       setLoading(true);
-      
-      const response = await runService.createRun(formData);
-      console.log('Run created successfully:', response);
-      
+      await runService.createRun(formData);
       notifications.show({
         title: 'Success',
         message: 'Run added successfully',
         color: 'green'
       });
-      
-      await loadRuns(); // Reload the runs list
+      await loadRuns();
       setFormOpened(false);
     } catch (error) {
       console.error('Error creating run:', error);
-      console.error('Error details:', error.response?.data);
-      
       notifications.show({
         title: 'Error',
-        message: error.response?.data?.message || 'Failed to create run',
+        message: 'Failed to create run',
         color: 'red'
       });
     } finally {
@@ -61,32 +55,82 @@ export default function Runs() {
     }
   };
 
+  // Helper function to format duration from seconds to HH:MM:SS
+  const formatDuration = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Helper function to format pace (seconds per km) to MM:SS
+  const formatPace = (secondsPerKm) => {
+    const minutes = Math.floor(secondsPerKm / 60);
+    const seconds = secondsPerKm % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+  };
+
+  const handleRowClick = (runId) => {
+    navigate(`/runs/${runId}`);
+  };
+
   return (
     <AppShell
       header={<Header />}
-      padding="md"
     >
-      <Container size="lg" pos="relative">
-        <LoadingOverlay visible={loading} />
-        
-        <Group position="apart" mb="xl">
-          <Title>My Runs</Title>
-          <Button onClick={() => setFormOpened(true)}>Add New Run</Button>
-        </Group>
-        
-        {runs.length === 0 ? (
-          <Text c="dimmed">No runs recorded yet.</Text>
-        ) : (
-          // We'll add the runs table here in the next step
-          <Text>You have {runs.length} runs recorded.</Text>
-        )}
+      <AppShell.Header>
+        <Header />
+      </AppShell.Header>
 
-        <RunForm
-          opened={formOpened}
-          onClose={() => setFormOpened(false)}
-          onSubmit={handleSubmit}
-        />
-      </Container>
+      <AppShell.Main>
+        <Container size="lg">
+          <Group justify="space-between" mb="xl">
+            <Title>My Runs</Title>
+            <Button onClick={() => setFormOpened(true)}>Add New Run</Button>
+          </Group>
+
+          <div style={{ position: 'relative' }}>
+            <LoadingOverlay visible={loading} />
+            
+            {runs.length === 0 && !loading ? (
+              <Text c="dimmed">No runs recorded yet.</Text>
+            ) : (
+              <Table striped highlightOnHover>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Distance (km)</th>
+                    <th>Duration</th>
+                    <th>Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr 
+                      key={run.id} 
+                      onClick={() => handleRowClick(run.id)}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ''}
+                    >
+                      <td>{new Date(run.date).toLocaleDateString()}</td>
+                      <td>{run.distance.toFixed(2)}</td>
+                      <td>{formatDuration(run.duration)}</td>
+                      <td>{run.type ? run.type.replace('_', ' ') : 'Unknown'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </div>
+
+          <RunForm
+            opened={formOpened}
+            onClose={() => setFormOpened(false)}
+            onSubmit={handleSubmit}
+          />
+        </Container>
+      </AppShell.Main>
     </AppShell>
   );
 } 

@@ -5,28 +5,43 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true
 });
 
-// Add a request interceptor to add the auth token to requests
+// Add request interceptor
 api.interceptors.request.use(
   (config) => {
+    // Get token from localStorage
     const token = localStorage.getItem('token');
+    
+    // Log the token for debugging
+    console.log('Current token:', token);
+    
+    // Add token to headers if it exists
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Log the final config
+    console.log('Request config:', {
+      url: config.url,
+      method: config.method,
+      headers: config.headers
+    });
+    
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// Add a response interceptor to handle errors
+// Add response interceptor
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized error (e.g., redirect to login)
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

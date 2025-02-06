@@ -12,8 +12,14 @@ export const runService = {
   },
 
   getRun: async (id) => {
-    const response = await api.get(`/runs/${id}`);
-    return response.data;
+    console.log('runService.getRun called with id:', id);
+    try {
+      const response = await api.get(`/runs/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error in getRun:', error);
+      throw error;
+    }
   },
 
   createRun: async (runData) => {

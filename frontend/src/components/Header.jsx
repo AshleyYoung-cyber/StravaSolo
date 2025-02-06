@@ -1,10 +1,11 @@
-import { AppShell, Group, Button, Text } from '@mantine/core';
-import { useNavigate } from 'react-router-dom';
+import { Group, Button, Text } from '@mantine/core';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -14,14 +15,13 @@ export default function Header() {
   const links = [
     { link: '/dashboard', label: 'Dashboard' },
     { link: '/runs', label: 'Runs' },
-    { link: '/workouts', label: 'Workouts' },
     { link: '/goals', label: 'Goals' },
   ];
 
   const items = links.map((link) => (
     <Button
       key={link.label}
-      variant="subtle"
+      variant={location.pathname.startsWith(link.link) ? "filled" : "subtle"}
       onClick={() => navigate(link.link)}
     >
       {link.label}
@@ -29,10 +29,17 @@ export default function Header() {
   ));
 
   return (
-    <AppShell.Header p="md">
+    <div style={{ padding: '1rem' }}>
       <Group justify="space-between" h="100%">
         <Group>
-          <Text size="xl" fw={700}>SoloStrava</Text>
+          <Text 
+            size="xl" 
+            fw={700} 
+            style={{ cursor: 'pointer' }}
+            onClick={() => navigate('/dashboard')}
+          >
+            SoloStrava
+          </Text>
           <Group ml={50} spacing={5}>
             {items}
           </Group>
@@ -45,6 +52,6 @@ export default function Header() {
           </Button>
         </Group>
       </Group>
-    </AppShell.Header>
+    </div>
   );
 } 
