@@ -1,4 +1,5 @@
-import { AppShell, Container, Button, TextInput, Select, Group, Title, Stack, Box } from '@mantine/core';
+import { AppShell, Container, Button, TextInput, Select, Group, Title, Stack, Box, Radio, Text } from '@mantine/core';
+import { DateInput } from '@mantine/dates';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { notifications } from '@mantine/notifications';
@@ -11,6 +12,11 @@ export default function AddGoal() {
   const [distance, setDistance] = useState('');
   const [unit, setUnit] = useState('mi');
   const [time, setTime] = useState('');
+  const [mileageTimeframe, setMileageTimeframe] = useState('WEEKLY');
+  const [raceName, setRaceName] = useState('');
+  const [raceDate, setRaceDate] = useState(null);
+  const [location, setLocation] = useState('');
+  const [raceType, setRaceType] = useState('');
 
   // Prevent scroll wheel from changing number input
   const handleWheel = (e) => {
@@ -62,15 +68,56 @@ export default function AddGoal() {
         goalData = {
           type: 'DISTANCE',
           target: Number(distance),
-          timeframe: 'WEEKLY',
+          unit: unit,
+          timeframe: mileageTimeframe,
           startDate: new Date().toISOString(),
-          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+          endDate: new Date(Date.now() + (mileageTimeframe === 'WEEKLY' ? 7 : 30) * 24 * 60 * 60 * 1000).toISOString()
         };
+      } else if (goalType === 'race') {
+        // Log form values before processing
+        console.log('Raw form values:', {
+          raceName,
+          raceDate,
+          location,
+          distance,
+          unit,
+          raceType
+        });
+
+        // Validate form values
+        if (!raceName?.trim()) {
+          throw new Error('Race name is required');
+        }
+        if (!raceDate) {
+          throw new Error('Race date is required');
+        }
+        if (!location?.trim()) {
+          throw new Error('Location is required');
+        }
+        if (!distance) {
+          throw new Error('Distance is required');
+        }
+        if (!raceType?.trim()) {
+          throw new Error('Race type is required');
+        }
+
+        goalData = {
+          type: 'RACE',
+          name: raceName.trim(),
+          date: raceDate.toISOString(),
+          location: location.trim(),
+          distance: Number(distance),
+          unit: unit,
+          raceType: raceType.trim(),
+          startDate: new Date().toISOString(),
+          endDate: raceDate.toISOString()
+        };
+        
+        console.log('Processed goal data:', goalData);
       }
 
-      console.log('Sending goal data:', goalData);
       const response = await goalService.createGoal(goalData);
-      console.log('Response:', response);
+      console.log('Server response:', response);
 
       notifications.show({
         title: 'Success',
@@ -79,11 +126,18 @@ export default function AddGoal() {
       });
       navigate('/goals');
     } catch (error) {
-      console.error('Error creating goal:', error);
-      console.error('Error response:', error.response?.data);
+      console.error('Detailed error information:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        receivedData: error.response?.data?.errors?.[0]?.received,
+        invalidFields: error.response?.data?.errors?.[0]?.invalidFields
+      });
+      
+      const errorMsg = error.response?.data?.errors?.[0]?.msg || error.message;
       notifications.show({
         title: 'Error',
-        message: error.response?.data?.errors?.[0]?.msg || error.message || 'Failed to create goal',
+        message: errorMsg,
         color: 'red'
       });
     }
@@ -162,20 +216,149 @@ export default function AddGoal() {
             )}
 
             {goalType === 'mileage' && (
-              <TextInput
-                label="Target (miles)"
-                type="number"
-                value={distance}
-                onChange={(e) => setDistance(e.target.value)}
-                onWheel={handleWheel}
-              />
+              <Stack spacing="md">
+                <Stack spacing={4}>
+                  <Text size="sm" weight={500}>Timeframe</Text>
+                  <Radio.Group
+                    value={mileageTimeframe}
+                    onChange={setMileageTimeframe}
+                    style={{ display: 'flex', flexDirection: 'row', gap: '2rem' }}
+                  >
+                    <Radio value="WEEKLY" label="Weekly" />
+                    <Radio value="MONTHLY" label="Monthly" />
+                  </Radio.Group>
+                </Stack>
+
+                <Box sx={{ position: 'relative' }}>
+                  <TextInput
+                    label="Distance"
+                    type="number"
+                    value={distance}
+                    onChange={(e) => setDistance(e.target.value)}
+                    onWheel={handleWheel}
+                    rightSection={
+                      <Box sx={{ position: 'static', zIndex: 9999 }}>
+                        <Select
+                          value={unit}
+                          onChange={setUnit}
+                          data={[
+                            { value: 'mi', label: 'mi' },
+                            { value: 'km', label: 'km' }
+                          ]}
+                          styles={{
+                            dropdown: {
+                              position: 'absolute',
+                              zIndex: 9999
+                            }
+                          }}
+                          sx={{ width: 80 }}
+                        />
+                      </Box>
+                    }
+                  />
+                </Box>
+              </Stack>
+            )}
+
+            {goalType === 'race' && (
+              <Stack spacing="md">
+                <TextInput
+                  label="Race Name"
+                  value={raceName}
+                  onChange={(e) => setRaceName(e.target.value)}
+                  required
+                />
+
+                <Box sx={{ position: 'relative', zIndex: 101 }}>
+                  <DateInput
+                    label="Race Date"
+                    value={raceDate}
+                    onChange={setRaceDate}
+                    required
+                    minDate={new Date()}
+                    popoverProps={{ 
+                      withinPortal: false,
+                      position: "bottom",
+                      styles: {
+                        dropdown: {
+                          position: 'absolute',
+                          zIndex: 9999
+                        }
+                      }
+                    }}
+                  />
+                </Box>
+
+                <TextInput
+                  label="Location"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  required
+                />
+
+                <Box sx={{ position: 'relative' }}>
+                  <TextInput
+                    label="Distance"
+                    type="number"
+                    value={distance}
+                    onChange={(e) => setDistance(e.target.value)}
+                    onWheel={handleWheel}
+                    required
+                    rightSection={
+                      <Box sx={{ position: 'static', zIndex: 9999 }}>
+                        <Select
+                          value={unit}
+                          onChange={setUnit}
+                          data={[
+                            { value: 'mi', label: 'mi' },
+                            { value: 'km', label: 'km' }
+                          ]}
+                          styles={{
+                            dropdown: {
+                              position: 'absolute',
+                              zIndex: 9999
+                            }
+                          }}
+                          sx={{ width: 80 }}
+                        />
+                      </Box>
+                    }
+                  />
+                </Box>
+
+                <Box sx={{ position: 'relative', zIndex: 100 }}>
+                  <Select
+                    label="Race Type"
+                    value={raceType}
+                    onChange={setRaceType}
+                    data={[
+                      { value: 'road', label: 'Road' },
+                      { value: 'trail', label: 'Trail' },
+                      { value: 'track', label: 'Track' },
+                      { value: 'cross', label: 'Cross Country' }
+                    ]}
+                    styles={{
+                      dropdown: {
+                        position: 'absolute',
+                        zIndex: 9999
+                      }
+                    }}
+                    required
+                  />
+                </Box>
+              </Stack>
             )}
 
             <Group>
               <Button onClick={() => navigate('/goals')}>Cancel</Button>
               <Button 
                 onClick={handleSubmit} 
-                disabled={!goalType || !distance || (goalType === 'pr' && !time)}
+                disabled={
+                  !goalType || 
+                  (goalType === 'pr' && (!distance || !time)) ||
+                  (goalType === 'mileage' && !distance) ||
+                  (goalType === 'race' && (!raceName || !raceDate || !location || !distance || !raceType))
+                }
               >
                 Create Goal
               </Button>

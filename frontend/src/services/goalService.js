@@ -1,42 +1,52 @@
-import api from './api';
+import axios from 'axios';
 
-export default {
-  async getAllGoals() {
-    const response = await api.get('/goals');
-    return response.data;
-  },
+const BASE_URL = 'http://localhost:3000/api/goals';
 
-  async createGoal(goalData) {
+const goalService = {
+  createGoal: async (goalData) => {
     try {
-      // Log the exact data being sent
-      console.log('Sending to API:', {
-        url: '/goals',
-        method: 'POST',
-        data: goalData,
-        headers: api.defaults.headers
+      console.log('Sending goal data:', goalData);
+      const token = localStorage.getItem('token');
+      const response = await axios.post(BASE_URL, goalData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
       });
-
-      const response = await api.post('/goals', goalData);
+      console.log('Response:', response.data);
       return response.data;
     } catch (error) {
-      // Log detailed error information
-      console.error('API Error:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data,
-        headers: error.response?.headers
-      });
+      console.error('API Error:', error.response);
       throw error;
     }
   },
 
-  async updateGoal(id, goalData) {
-    const response = await api.put(`/goals/${id}`, goalData);
+  getAllGoals: async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(BASE_URL, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
+      return response.data;
+    } catch (error) {
+      console.error('API Error:', error.response);
+      throw error;
+    }
+  },
+
+  updateGoal: async (id, goalData) => {
+    const response = await axios.put(`${BASE_URL}/${id}`, goalData);
     return response.data;
   },
 
-  async deleteGoal(id) {
-    const response = await api.delete(`/goals/${id}`);
+  deleteGoal: async (id) => {
+    const response = await axios.delete(`${BASE_URL}/${id}`);
     return response.data;
   }
-}; 
+};
+
+export default goalService; 
