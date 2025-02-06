@@ -1,9 +1,10 @@
-import { AppShell, Container, Title, Card, Text, Group, Button } from '@mantine/core';
+import { AppShell, Container, Title, Card, Text, Group, Button, ActionIcon } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import goalService from '../services/goalService';
 import Header from '../components/Header';
+import { IconTrash } from '@tabler/icons-react';
 
 export default function Goals() {
   const navigate = useNavigate();
@@ -28,6 +29,25 @@ export default function Goals() {
     fetchGoals();
   }, []);
 
+  const handleDelete = async (goalId) => {
+    try {
+      await goalService.deleteGoal(goalId);
+      setGoals(goals.filter(goal => goal.id !== goalId));
+      notifications.show({
+        title: 'Success',
+        message: 'Goal deleted successfully',
+        color: 'green'
+      });
+    } catch (error) {
+      console.error('Error deleting goal:', error);
+      notifications.show({
+        title: 'Error',
+        message: 'Failed to delete goal',
+        color: 'red'
+      });
+    }
+  };
+
   const renderGoalContent = (goal) => {
     console.log('Rendering goal:', goal);
 
@@ -35,26 +55,37 @@ export default function Goals() {
       return null;
     }
 
-    const { type, target, timeframe, unit, time } = goal.data;
+    const { type } = goal;
+    const { name, date, location, distance, unit, raceType } = goal.data;
 
     if (type === 'DISTANCE') {
-      if (timeframe === 'PR') {
+      if (goal.data.timeframe === 'PR') {
         return (
           <>
             <Title order={3}>Personal Record Goal</Title>
-            <Text>Distance: {target} {unit}</Text>
-            <Text>Target Time: {time}</Text>
+            <Text>Distance: {goal.data.target} {goal.data.unit}</Text>
+            <Text>Target Time: {goal.data.time}</Text>
           </>
         );
       } else {
         return (
           <>
             <Title order={3}>Mileage Goal</Title>
-            <Text>Target: {target} miles</Text>
-            <Text>Timeframe: {timeframe}</Text>
+            <Text>Target: {goal.data.target} miles</Text>
+            <Text>Timeframe: {goal.data.timeframe}</Text>
           </>
         );
       }
+    } else if (type === 'RACE') {
+      return (
+        <>
+          <Title order={3}>Race Goal: {name}</Title>
+          <Text>Date: {new Date(date).toLocaleDateString()}</Text>
+          <Text>Location: {location}</Text>
+          <Text>Distance: {distance} {unit}</Text>
+          <Text>Type: {raceType}</Text>
+        </>
+      );
     }
 
     return <Text>Unknown goal type</Text>;
@@ -80,7 +111,16 @@ export default function Goals() {
           ) : (
             goals.map((goal) => (
               <Card key={goal.id} shadow="sm" p="lg" mb="md">
-                {renderGoalContent(goal)}
+                <Group position="apart">
+                  <div>{renderGoalContent(goal)}</div>
+                  <ActionIcon 
+                    color="red" 
+                    onClick={() => handleDelete(goal.id)}
+                    variant="subtle"
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Group>
               </Card>
             ))
           )}

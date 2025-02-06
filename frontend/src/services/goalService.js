@@ -43,9 +43,20 @@ const goalService = {
     return response.data;
   },
 
-  deleteGoal: async (id) => {
-    const response = await axios.delete(`${BASE_URL}/${id}`);
-    return response.data;
+  deleteGoal: async (goalId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.delete(`${BASE_URL}/${goalId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
+      return response.data;
+    } catch (error) {
+      console.error('API Error:', error.response);
+      throw error;
+    }
   }
 };
 

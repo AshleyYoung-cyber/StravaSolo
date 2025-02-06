@@ -1,6 +1,7 @@
 import { Group, Button, Text } from '@mantine/core';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 export default function Header() {
   const { user, logout } = useAuth();

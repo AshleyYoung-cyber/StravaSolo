@@ -1,12 +1,20 @@
-import api from './api';
+import axios from 'axios';
 
-export const runService = {
+const BASE_URL = 'http://localhost:3000/api/runs';
+
+const runService = {
   getAllRuns: async () => {
     try {
-      const response = await api.get('/runs');
+      const token = localStorage.getItem('token');
+      const response = await axios.get(BASE_URL, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
       return response.data;
     } catch (error) {
-      console.error('Error in getAllRuns:', error);
+      console.error('API Error:', error.response);
       throw error;
     }
   },
@@ -14,7 +22,7 @@ export const runService = {
   getRun: async (id) => {
     console.log('runService.getRun called with id:', id);
     try {
-      const response = await api.get(`/runs/${id}`);
+      const response = await axios.get(`${BASE_URL}/${id}`);
       return response.data;
     } catch (error) {
       console.error('Error in getRun:', error);
@@ -24,23 +32,29 @@ export const runService = {
 
   createRun: async (runData) => {
     try {
-      console.log('runService.createRun called with:', runData);
-      const response = await api.post('/runs', runData);
-      console.log('runService.createRun response:', response);
+      const token = localStorage.getItem('token');
+      const response = await axios.post(BASE_URL, runData, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
       return response.data;
     } catch (error) {
-      console.error('Error in createRun:', error);
+      console.error('API Error:', error.response);
       throw error;
     }
   },
 
   updateRun: async (id, runData) => {
-    const response = await api.put(`/runs/${id}`, runData);
+    const response = await axios.put(`${BASE_URL}/${id}`, runData);
     return response.data;
   },
 
   deleteRun: async (id) => {
-    const response = await api.delete(`/runs/${id}`);
+    const response = await axios.delete(`${BASE_URL}/${id}`);
     return response.data;
   }
-}; 
+};
+
+export default runService; 
