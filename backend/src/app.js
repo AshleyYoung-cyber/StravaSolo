@@ -1,25 +1,29 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const routes = require('./routes');
+const goalsRouter = require('./routes/goals');
+const authRouter = require('./routes/auth');
 
 const app = express();
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(morgan('dev'));
+// Configure CORS before any routes
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Parse JSON bodies
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api', routes);
+// Mount routes
+app.use('/api/auth', authRouter);
+app.use('/api/goals', goalsRouter);
 
-// Error handling
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  res.status(500).json({ message: 'Something broke!' });
 });
 
 module.exports = app; 

@@ -22,29 +22,29 @@ const runController = {
     }
   },
 
-  // Get single run by ID
+  // Get single run for logged in user
   async getRun(req, res) {
     try {
-      console.log('Fetching run with ID:', req.params.id);
-      console.log('For user:', req.user.id);
+      console.log('getRun called with id:', req.params.id, 'for user:', req.user.id);
       
       const run = await Run.findOne({
         where: { 
           id: req.params.id,
-          UserId: req.user.id  // Changed from userId to UserId
+          UserId: req.user.id
         }
       });
       
-      console.log('Run found:', run);
+      console.log('Run found:', run); // Debug log
       
       if (!run) {
+        console.log('No run found with id:', req.params.id); // Debug log
         return res.status(404).json({ error: 'Run not found' });
       }
       
+      console.log('Sending run data:', run); // Debug log
       res.json(run);
     } catch (error) {
-      console.error('Detailed error fetching run:', error);
-      console.error('Error stack:', error.stack);
+      console.error('Error fetching run:', error);
       res.status(500).json({ error: 'Error fetching run', details: error.message });
     }
   },
