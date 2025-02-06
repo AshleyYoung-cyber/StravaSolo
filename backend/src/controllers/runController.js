@@ -1,4 +1,5 @@
 const { Run } = require('../models');
+const pool = require('../db');
 
 const runController = {
   // Get all runs for logged in user
@@ -6,15 +7,13 @@ const runController = {
     try {
       console.log('Fetching runs for user:', req.user.id);
       
-      const runs = await Run.findAll({
-        where: { 
-          UserId: req.user.id  // Changed from userId to UserId to match Sequelize convention
-        },
-        order: [['date', 'DESC']]
-      });
+      const result = await pool.query(
+        'SELECT * FROM runs WHERE user_id = $1 ORDER BY date DESC',
+        [req.user.id]
+      );
       
-      console.log('Runs found:', runs.length);
-      res.json(runs);
+      console.log('Runs found:', result.rows.length);
+      res.json(result.rows);
     } catch (error) {
       console.error('Detailed error fetching runs:', error);
       console.error('Error stack:', error.stack);
@@ -51,24 +50,46 @@ const runController = {
 
   // Create new run
   async createRun(req, res) {
+    const client = await pool.connect();
     try {
-      const { distance, duration, date, averagePace, calories, notes } = req.body;
+      await client.query('BEGIN');
       
-      const run = await Run.create({
-        userId: req.user.id,
-        distance,
-        duration,
-        date: date || new Date(),
-        averagePace,
-        calories,
-        notes,
-        UserId: req.user.id
-      });
-      
+      const { distance, duration, date, type, location, notes } = req.body;
+      const userId = req.user.id;
+
+      // Insert the run
+      const runResult = await client.query(
+        `INSERT INTO runs (user_id, distance, duration, date, type, location, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING *`,
+        [userId, distance, duration, date, type, location, notes]
+      );
+
+      const run = runResult.rows[0];
+
+      // Check if this run completes any goals
+      const goalsResult = await client.query(
+        `SELECT * FROM goals 
+         WHERE user_id = $1 
+         AND completed = FALSE`,
+        [userId]
+      );
+
+      // Logic to check if run completes any goals will go here
+      // We'll implement this next
+
+      await client.query('COMMIT');
       res.status(201).json(run);
     } catch (error) {
-      console.error('Error creating run:', error);
-      res.status(500).json({ error: 'Error creating run' });
+      await client.query('ROLLBACK');
+      console.error('Error in createRun:', error);
+      res.status(400).json({
+        errors: [{
+          msg: error.message
+        }]
+      });
+    } finally {
+      client.release();
     }
   },
 

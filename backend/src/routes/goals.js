@@ -110,6 +110,6 @@ router.post('/', (req, res, next) => {
 router.put('/:id', goalController.updateGoal);
 
 // Delete goal
-router.delete('/:id', goalIdValidation, goalController.deleteGoal);
+router.delete('/:id', goalController.deleteGoal);
 
 module.exports = router; 

@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const runController = require('../controllers/runController');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const { runValidationRules, runIdValidation } = require('../middleware/runValidation');
 
 // All run routes require authentication
-router.use(auth);
+router.use(authenticateToken);
 
 // Get all runs
 router.get('/', runController.getAllRuns);

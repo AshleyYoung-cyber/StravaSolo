@@ -71,59 +71,27 @@ const goalController = {
   async createGoal(req, res) {
     const client = await pool.connect();
     try {
+      console.log('Received request body:', req.body);
+      console.log('User ID:', req.user.id);
+      
       await client.query('BEGIN');
       
-      const userId = req.user.id;
-      const goalData = {
-        type: req.body.type,
-        name: req.body.name,
-        date: req.body.date,
-        location: req.body.location,
-        distance: Number(req.body.distance),
-        raceType: req.body.raceType,
-        unit: req.body.unit,
-        startDate: req.body.startDate,
-        endDate: req.body.endDate
-      };
+      // Separate type from the rest of the data
+      const { type, ...restData } = req.body;
 
-      console.log('Attempting to insert goal with:', {
-        userId,
-        goalData: JSON.stringify(goalData)
-      });
+      const result = await client.query(
+        'INSERT INTO goals (user_id, type, data) VALUES ($1, $2, $3) RETURNING *',
+        [req.user.id, type, restData]
+      );
 
-      // First check if we can query the goals table
-      try {
-        await client.query('SELECT 1 FROM goals LIMIT 1');
-      } catch (tableError) {
-        console.error('Error accessing goals table:', tableError);
-        throw new Error('Database table access error');
-      }
-
-      // Try the insert
-      try {
-        const result = await client.query(
-          'INSERT INTO goals (user_id, data) VALUES ($1, $2) RETURNING *',
-          [userId, goalData]
-        );
-        
-        console.log('Insert successful:', result.rows[0]);
-        await client.query('COMMIT');
-        return res.status(201).json(result.rows[0]);
-      } catch (insertError) {
-        console.error('Insert error:', {
-          code: insertError.code,
-          message: insertError.message,
-          detail: insertError.detail
-        });
-        throw new Error(`Failed to insert goal: ${insertError.message}`);
-      }
+      await client.query('COMMIT');
+      res.status(201).json(result.rows[0]);
     } catch (error) {
-      console.error('Top level error:', error);
       await client.query('ROLLBACK');
-      return res.status(400).json({
+      console.error('Error in createGoal:', error);
+      res.status(400).json({
         errors: [{
-          msg: 'Failed to create goal',
-          error: error.message,
+          msg: error.message,
           details: error.stack
         }]
       });
@@ -161,25 +129,45 @@ const goalController = {
 
   // Delete goal
   async deleteGoal(req, res) {
+    const client = await pool.connect();
     try {
-      const userId = req.user.id;
       const goalId = req.params.id;
+      const userId = req.user.id;
 
-      const query = `
-        DELETE FROM goals 
-        WHERE id = $1 AND user_id = $2
-        RETURNING *
-      `;
+      console.log('Attempting to delete goal:', { goalId, userId });
 
-      const { rows } = await pool.query(query, [goalId, userId]);
+      await client.query('BEGIN');
 
-      if (rows.length === 0) {
-        return res.status(404).json({ message: 'Goal not found' });
+      // First check if the goal exists and belongs to the user
+      const checkResult = await client.query(
+        'SELECT * FROM goals WHERE id = $1 AND user_id = $2',
+        [goalId, userId]
+      );
+
+      if (checkResult.rows.length === 0) {
+        throw new Error('Goal not found or unauthorized');
       }
 
-      res.json({ message: 'Goal deleted successfully' });
+      // Delete the goal
+      const result = await client.query(
+        'DELETE FROM goals WHERE id = $1 AND user_id = $2 RETURNING *',
+        [goalId, userId]
+      );
+
+      await client.query('COMMIT');
+      
+      console.log('Goal deleted successfully');
+      res.status(200).json({ message: 'Goal deleted successfully' });
     } catch (error) {
-      handleDatabaseError(error, res);
+      await client.query('ROLLBACK');
+      console.error('Error in deleteGoal:', error);
+      res.status(error.message === 'Goal not found or unauthorized' ? 404 : 400).json({
+        errors: [{
+          msg: error.message
+        }]
+      });
+    } finally {
+      client.release();
     }
   }
 };
