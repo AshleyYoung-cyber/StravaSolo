@@ -31,6 +31,7 @@ const runService = {
   },
 
   createRun: async (runData) => {
+    console.log('Sending run data:', runData);
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(BASE_URL, runData, {
@@ -41,7 +42,16 @@ const runService = {
       });
       return response.data;
     } catch (error) {
-      console.error('API Error:', error.response);
+      if (error.response?.data?.errors) {
+        error.response.data.errors.forEach((err, index) => {
+          console.error(`Error ${index + 1}:`, {
+            field: err.field || 'unknown',
+            message: err.msg || err.message,
+            value: err.value
+          });
+        });
+      }
+      console.error('Full response data:', error.response?.data);
       throw error;
     }
   },

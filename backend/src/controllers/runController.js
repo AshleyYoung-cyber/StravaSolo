@@ -1,47 +1,48 @@
-const { Run } = require('../models');
 const pool = require('../db');
 
 const runController = {
   // Get all runs for logged in user
   async getAllRuns(req, res) {
     try {
-      console.log('Fetching runs for user:', req.user.id);
+      console.log('Fetching runs for user:', req.user?.id);
+      console.log('Full user object:', req.user);  // Check if user is properly authenticated
       
+      if (!req.user || !req.user.id) {
+        throw new Error('User not authenticated');
+      }
+
       const result = await pool.query(
         'SELECT * FROM runs WHERE user_id = $1 ORDER BY date DESC',
         [req.user.id]
       );
       
+      console.log('Query result:', result);
       console.log('Runs found:', result.rows.length);
       res.json(result.rows);
     } catch (error) {
-      console.error('Detailed error fetching runs:', error);
+      console.error('Full error details:', error);
       console.error('Error stack:', error.stack);
-      res.status(500).json({ error: 'Error fetching runs', details: error.message });
+      res.status(500).json({ 
+        error: 'Error fetching runs', 
+        details: error.message,
+        stack: error.stack 
+      });
     }
   },
 
-  // Get single run for logged in user
+  // Get single run
   async getRun(req, res) {
     try {
-      console.log('getRun called with id:', req.params.id, 'for user:', req.user.id);
+      const result = await pool.query(
+        'SELECT * FROM runs WHERE id = $1 AND user_id = $2',
+        [req.params.id, req.user.id]
+      );
       
-      const run = await Run.findOne({
-        where: { 
-          id: req.params.id,
-          UserId: req.user.id
-        }
-      });
-      
-      console.log('Run found:', run); // Debug log
-      
-      if (!run) {
-        console.log('No run found with id:', req.params.id); // Debug log
+      if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Run not found' });
       }
       
-      console.log('Sending run data:', run); // Debug log
-      res.json(run);
+      res.json(result.rows[0]);
     } catch (error) {
       console.error('Error fetching run:', error);
       res.status(500).json({ error: 'Error fetching run', details: error.message });
@@ -52,41 +53,81 @@ const runController = {
   async createRun(req, res) {
     const client = await pool.connect();
     try {
+      console.log('Received run data:', req.body);
+      
       await client.query('BEGIN');
       
       const { distance, duration, date, type, location, notes } = req.body;
       const userId = req.user.id;
 
-      // Insert the run
+      // Insert the run without average_pace and calories
       const runResult = await client.query(
         `INSERT INTO runs (user_id, distance, duration, date, type, location, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
         [userId, distance, duration, date, type, location, notes]
       );
-
+      
       const run = runResult.rows[0];
+      console.log('Created run:', run);
 
-      // Check if this run completes any goals
-      const goalsResult = await client.query(
+      // Get all active (uncompleted) goals for this user
+      const activeGoals = await client.query(
         `SELECT * FROM goals 
          WHERE user_id = $1 
-         AND completed = FALSE`,
+         AND id NOT IN (
+           SELECT goal_id FROM completed_goals WHERE user_id = $1
+         )`,
         [userId]
       );
 
-      // Logic to check if run completes any goals will go here
-      // We'll implement this next
+      // Check each goal to see if it's completed by this run
+      for (const goal of activeGoals.rows) {
+        let isCompleted = false;
+
+        switch (goal.type) {
+          case 'RACE':
+            // For race goals, check if the distance matches and it's marked as a race
+            if (goal.data.distance === run.distance && run.type === 'race') {
+              isCompleted = true;
+            }
+            break;
+
+          case 'DISTANCE':
+            if (goal.data.timeframe === 'PR') {
+              // For PR goals, check if the distance matches and time is better
+              if (goal.data.distance === run.distance) {
+                const runTime = run.duration; // Assuming duration is stored in a comparable format
+                if (runTime < goal.data.time) {
+                  isCompleted = true;
+                }
+              }
+            }
+            // Add other distance goal types here
+            break;
+        }
+
+        // If goal is completed, add to completed_goals table
+        if (isCompleted) {
+          await client.query(
+            `INSERT INTO completed_goals (goal_id, user_id, completing_run_id)
+             VALUES ($1, $2, $3)`,
+            [goal.id, userId, run.id]
+          );
+        }
+      }
 
       await client.query('COMMIT');
-      res.status(201).json(run);
+      
+      res.status(201).json({
+        run,
+        message: 'Run logged successfully'
+      });
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Error in createRun:', error);
       res.status(400).json({
-        errors: [{
-          msg: error.message
-        }]
+        error: error.message
       });
     } finally {
       client.release();
@@ -95,71 +136,65 @@ const runController = {
 
   // Update run
   async updateRun(req, res) {
+    const client = await pool.connect();
     try {
-      console.log('Updating run with ID:', req.params.id);
-      console.log('For user:', req.user.id);
-      console.log('Update data:', req.body);
+      await client.query('BEGIN');
       
-      const run = await Run.findOne({
-        where: { 
-          id: req.params.id,
-          UserId: req.user.id  // Changed from userId to UserId
-        }
-      });
+      const { distance, duration, date, type, location, notes } = req.body;
       
-      console.log('Run found:', run);
-      
-      if (!run) {
-        return res.status(404).json({ error: 'Run not found' });
+      const result = await client.query(
+        `UPDATE runs 
+         SET distance = COALESCE($1, distance),
+             duration = COALESCE($2, duration),
+             date = COALESCE($3, date),
+             type = COALESCE($4, type),
+             location = COALESCE($5, location),
+             notes = COALESCE($6, notes)
+         WHERE id = $7 AND user_id = $8
+         RETURNING *`,
+        [distance, duration, date, type, location, notes, req.params.id, req.user.id]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Run not found');
       }
-      
-      const { distance, duration, date, averagePace, calories, notes } = req.body;
-      
-      const updatedRun = await run.update({
-        distance: distance || run.distance,
-        duration: duration || run.duration,
-        date: date || run.date,
-        averagePace: averagePace || run.averagePace,
-        calories: calories || run.calories,
-        notes: notes || run.notes
-      });
-      
-      console.log('Run updated:', updatedRun);
-      res.json(updatedRun);
+
+      await client.query('COMMIT');
+      res.json(result.rows[0]);
     } catch (error) {
-      console.error('Detailed error updating run:', error);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({ error: 'Error updating run', details: error.message });
+      await client.query('ROLLBACK');
+      console.error('Error updating run:', error);
+      res.status(error.message === 'Run not found' ? 404 : 500)
+        .json({ error: error.message });
+    } finally {
+      client.release();
     }
   },
 
   // Delete run
   async deleteRun(req, res) {
+    const client = await pool.connect();
     try {
-      console.log('Attempting to delete run with ID:', req.params.id);
-      console.log('For user:', req.user.id);
+      await client.query('BEGIN');
       
-      const run = await Run.findOne({
-        where: { 
-          id: req.params.id,
-          UserId: req.user.id  // Changed from userId to UserId
-        }
-      });
-      
-      console.log('Run found:', run);
-      
-      if (!run) {
-        return res.status(404).json({ error: 'Run not found' });
+      const result = await client.query(
+        'DELETE FROM runs WHERE id = $1 AND user_id = $2 RETURNING *',
+        [req.params.id, req.user.id]
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error('Run not found');
       }
-      
-      await run.destroy();
-      console.log('Run successfully deleted');
-      
+
+      await client.query('COMMIT');
       res.json({ message: 'Run deleted successfully' });
     } catch (error) {
-      console.error('Detailed error deleting run:', error);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({ error: 'Error deleting run', details: error.message });
+      await client.query('ROLLBACK');
+      console.error('Error deleting run:', error);
+      res.status(error.message === 'Run not found' ? 404 : 500)
+        .json({ error: error.message });
+    } finally {
+      client.release();
     }
   }
 };

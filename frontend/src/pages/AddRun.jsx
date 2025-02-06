@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppShell, Container, Title, TextInput, NumberInput, Button, Select, Textarea } from '@mantine/core';
+import { AppShell, Container, Title, NumberInput, Button, Select, Textarea } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import Header from '../components/Header';
@@ -19,12 +19,36 @@ export default function AddRun() {
 
   const handleSubmit = async () => {
     try {
-      // Convert duration to interval string
-      const duration = `${hours || 0}:${minutes || 0}:${seconds || 0}`;
+      // Validate inputs
+      if (!distance || distance <= 0) {
+        notifications.show({
+          title: 'Error',
+          message: 'Please enter a valid distance',
+          color: 'red'
+        });
+        return;
+      }
+
+      // Convert hours, minutes, seconds to total seconds
+      const h = parseInt(hours || 0);
+      const m = parseInt(minutes || 0);
+      const s = parseInt(seconds || 0);
       
+      if (h === 0 && m === 0 && s === 0) {
+        notifications.show({
+          title: 'Error',
+          message: 'Please enter a duration',
+          color: 'red'
+        });
+        return;
+      }
+
+      // Convert to total seconds
+      const durationInSeconds = (h * 3600) + (m * 60) + s;
+
       const runData = {
         distance: Number(distance),
-        duration,
+        duration: durationInSeconds,  // Send duration in seconds
         date: date.toISOString(),
         type,
         location,
@@ -38,13 +62,13 @@ export default function AddRun() {
         message: 'Run logged successfully',
         color: 'green'
       });
-      
+
       navigate('/runs');
     } catch (error) {
       console.error('Error logging run:', error);
       notifications.show({
         title: 'Error',
-        message: error.response?.data?.errors?.[0]?.msg || 'Failed to log run',
+        message: error.response?.data?.error || 'Failed to log run',
         color: 'red'
       });
     }
@@ -58,25 +82,25 @@ export default function AddRun() {
 
       <AppShell.Main>
         <Container size="sm">
-          <Title mb="xl">Log a Run</Title>
+          <Title order={1} mb="xl">Log a Run</Title>
 
           <NumberInput
             label="Distance (miles)"
             value={distance}
             onChange={setDistance}
-            precision={2}
             min={0}
-            step={0.1}
+            precision={2}
             mb="md"
           />
 
-          <Title order={4} mb="xs">Duration</Title>
+          <Title order={3} mb="sm">Duration</Title>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
             <NumberInput
               label="Hours"
               value={hours}
               onChange={setHours}
               min={0}
+              max={99}
             />
             <NumberInput
               label="Minutes"
@@ -114,7 +138,7 @@ export default function AddRun() {
             mb="md"
           />
 
-          <TextInput
+          <Textarea
             label="Location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
