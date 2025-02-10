@@ -1,20 +1,32 @@
 import axios from 'axios';
 
+// Set base URL for all requests
+axios.defaults.baseURL = 'http://localhost:3000';  // Make sure this matches your backend port
+
 const BASE_URL = 'http://localhost:3000/api/runs';
 
 const runService = {
   getAllRuns: async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(BASE_URL, {
+      console.log('Getting runs with token:', token);
+
+      const response = await axios.get('/api/runs', {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
         },
         withCredentials: true
       });
+      
+      console.log('Response data:', response.data);
       return response.data;
     } catch (error) {
-      console.error('API Error:', error.response);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }
+      console.error('Error fetching runs:', error);
       throw error;
     }
   },
@@ -31,27 +43,41 @@ const runService = {
   },
 
   createRun: async (runData) => {
-    console.log('Sending run data:', runData);
     try {
+      // Log the raw data received
+      console.log('1. runService received data:', runData);
+      
+      // Explicitly check for distance_unit
+      console.log('2. distance_unit value:', runData.distance_unit);
+      
+      // Create a copy of the data to ensure we're not modifying the original
+      const dataToSend = {
+        ...runData,
+        distance_unit: runData.distance_unit // Explicitly include distance_unit
+      };
+      
+      // Log the exact data we're about to send
+      console.log('3. Data about to be sent to server:', dataToSend);
+      console.log('4. Stringified data:', JSON.stringify(dataToSend));
+
       const token = localStorage.getItem('token');
-      const response = await axios.post(BASE_URL, runData, {
+      
+      const response = await axios.post('/api/runs', dataToSend, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
         withCredentials: true
       });
+
+      console.log('5. Server response:', response.data);
       return response.data;
     } catch (error) {
-      if (error.response?.data?.errors) {
-        error.response.data.errors.forEach((err, index) => {
-          console.error(`Error ${index + 1}:`, {
-            field: err.field || 'unknown',
-            message: err.msg || err.message,
-            value: err.value
-          });
-        });
-      }
-      console.error('Full response data:', error.response?.data);
+      console.error('Error in createRun:', {
+        message: error.message,
+        requestData: runData,
+        responseError: error.response?.data
+      });
       throw error;
     }
   },
@@ -62,8 +88,18 @@ const runService = {
   },
 
   deleteRun: async (id) => {
-    const response = await axios.delete(`${BASE_URL}/${id}`);
-    return response.data;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/runs/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
+    } catch (error) {
+      console.error('Error deleting run:', error);
+      throw error;
+    }
   }
 };
 

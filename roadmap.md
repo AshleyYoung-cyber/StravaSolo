@@ -8,7 +8,6 @@ This document outlines the planned features and development timeline for the Sol
 *   **Features:**
     *   Precise GPS Tracking (Distance, Pace, Speed, Elevation)
     *   Basic Run Recording and Data Visualization (Graphs, Charts)
-    *   Customizable Workout Creation (Intervals, Tempo Runs)
     *   Goal Setting (Distance, Pace, Frequency)
     *   Basic Profile Creation and Management
     *   Offline Map Support (Core Running Areas)

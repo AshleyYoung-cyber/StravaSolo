@@ -13,8 +13,8 @@ const validateRequest = (req, res, next) => {
 // Validation rules for creating/updating runs
 const runValidationRules = [
   body('distance')
-    .isInt({ min: 1 })
-    .withMessage('Distance must be a positive number in meters'),
+    .isFloat({ min: 0.1 })  // Changed to float for decimal miles
+    .withMessage('Distance must be a positive number'),
   
   body('duration')
     .isInt({ min: 1 })
@@ -24,14 +24,6 @@ const runValidationRules = [
     .optional()
     .isISO8601()
     .withMessage('Date must be a valid ISO 8601 date'),
-  
-  body('averagePace')
-    .isInt({ min: 1 })
-    .withMessage('Average pace must be a positive number in seconds per km'),
-  
-  body('calories')
-    .isInt({ min: 0 })
-    .withMessage('Calories must be a non-negative number'),
   
   body('notes')
     .optional()

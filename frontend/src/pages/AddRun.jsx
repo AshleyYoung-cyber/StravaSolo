@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppShell, Container, Title, NumberInput, Button, Select, Textarea } from '@mantine/core';
+import { AppShell, Container, Title, NumberInput, Button, Select, Textarea, Box, SegmentedControl, Stack, TextInput } from '@mantine/core';
 import { DateTimePicker } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import Header from '../components/Header';
@@ -9,17 +9,24 @@ import runService from '../services/runService';
 export default function AddRun() {
   const navigate = useNavigate();
   const [distance, setDistance] = useState('');
+  const [distanceUnit, setDistanceUnit] = useState('miles');
+  const [date, setDate] = useState(new Date());
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
   const [seconds, setSeconds] = useState('');
-  const [date, setDate] = useState(new Date());
   const [type, setType] = useState('');
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
 
+  const handleUnitChange = (value) => {
+    console.log('Unit selection changed to:', value);
+    setDistanceUnit(value);
+  };
+
   const handleSubmit = async () => {
     try {
-      // Validate inputs
+      console.log('Submit started - Current unit:', distanceUnit);
+
       if (!distance || distance <= 0) {
         notifications.show({
           title: 'Error',
@@ -29,12 +36,11 @@ export default function AddRun() {
         return;
       }
 
-      // Convert hours, minutes, seconds to total seconds
-      const h = parseInt(hours || 0);
-      const m = parseInt(minutes || 0);
-      const s = parseInt(seconds || 0);
-      
-      if (h === 0 && m === 0 && s === 0) {
+      const durationInSeconds = (parseInt(hours || 0) * 3600) + 
+                              (parseInt(minutes || 0) * 60) + 
+                              parseInt(seconds || 0);
+
+      if (durationInSeconds === 0) {
         notifications.show({
           title: 'Error',
           message: 'Please enter a duration',
@@ -43,17 +49,17 @@ export default function AddRun() {
         return;
       }
 
-      // Convert to total seconds
-      const durationInSeconds = (h * 3600) + (m * 60) + s;
-
       const runData = {
         distance: Number(distance),
-        duration: durationInSeconds,  // Send duration in seconds
+        duration: durationInSeconds,
         date: date.toISOString(),
         type,
         location,
-        notes
+        notes,
+        distance_unit: distanceUnit  // Use the selected unit
       };
+
+      console.log('Submitting run data:', JSON.stringify(runData, null, 2));
 
       await runService.createRun(runData);
       
@@ -65,7 +71,7 @@ export default function AddRun() {
 
       navigate('/runs');
     } catch (error) {
-      console.error('Error logging run:', error);
+      console.error('Error submitting run:', error);
       notifications.show({
         title: 'Error',
         message: error.response?.data?.error || 'Failed to log run',
@@ -81,78 +87,93 @@ export default function AddRun() {
       </AppShell.Header>
 
       <AppShell.Main>
-        <Container size="sm">
+        <Container size="sm" mt="xl">
           <Title order={1} mb="xl">Log a Run</Title>
 
-          <NumberInput
-            label="Distance (miles)"
-            value={distance}
-            onChange={setDistance}
-            min={0}
-            precision={2}
-            mb="md"
-          />
+          <Stack spacing="md">
+            <Box>
+              <NumberInput
+                label="Distance"
+                value={distance}
+                onChange={setDistance}
+                min={0}
+                precision={2}
+                mb="sm"
+              />
+              
+              <SegmentedControl
+                value={distanceUnit}
+                onChange={handleUnitChange}
+                data={[
+                  { label: 'Miles', value: 'miles' },
+                  { label: 'Kilometers', value: 'km' }
+                ]}
+                fullWidth
+                mb="md"
+              />
+            </Box>
 
-          <Title order={3} mb="sm">Duration</Title>
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <NumberInput
-              label="Hours"
-              value={hours}
-              onChange={setHours}
-              min={0}
-              max={99}
+            <DateTimePicker
+              label="Date and Time"
+              value={date}
+              onChange={setDate}
             />
-            <NumberInput
-              label="Minutes"
-              value={minutes}
-              onChange={setMinutes}
-              min={0}
-              max={59}
+
+            <Box>
+              <Title order={3} size="h6" mb="xs">Duration</Title>
+              <Box style={{ display: 'flex', gap: '1rem' }}>
+                <NumberInput
+                  label="Hours"
+                  value={hours}
+                  onChange={setHours}
+                  min={0}
+                />
+                <NumberInput
+                  label="Minutes"
+                  value={minutes}
+                  onChange={setMinutes}
+                  min={0}
+                  max={59}
+                />
+                <NumberInput
+                  label="Seconds"
+                  value={seconds}
+                  onChange={setSeconds}
+                  min={0}
+                  max={59}
+                />
+              </Box>
+            </Box>
+
+            <Select
+              label="Type"
+              value={type}
+              onChange={setType}
+              data={[
+                { value: 'easy', label: 'Easy' },
+                { value: 'tempo', label: 'Tempo' },
+                { value: 'interval', label: 'Interval' },
+                { value: 'long', label: 'Long Run' },
+                { value: 'race', label: 'Race' }
+              ]}
             />
-            <NumberInput
-              label="Seconds"
-              value={seconds}
-              onChange={setSeconds}
-              min={0}
-              max={59}
+
+            <TextInput
+              label="Location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
             />
-          </div>
 
-          <DateTimePicker
-            label="Date and Time"
-            value={date}
-            onChange={setDate}
-            mb="md"
-          />
+            <Textarea
+              label="Notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
 
-          <Select
-            label="Type"
-            value={type}
-            onChange={setType}
-            data={[
-              { value: 'easy', label: 'Easy Run' },
-              { value: 'tempo', label: 'Tempo Run' },
-              { value: 'long', label: 'Long Run' },
-              { value: 'race', label: 'Race' }
-            ]}
-            mb="md"
-          />
-
-          <Textarea
-            label="Location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            mb="md"
-          />
-
-          <Textarea
-            label="Notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            mb="xl"
-          />
-
-          <Button onClick={handleSubmit}>Log Run</Button>
+            <Button onClick={handleSubmit} fullWidth>
+              Log Run
+            </Button>
+          </Stack>
         </Container>
       </AppShell.Main>
     </AppShell>

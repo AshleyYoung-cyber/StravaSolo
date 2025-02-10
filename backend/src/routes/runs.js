@@ -4,22 +4,22 @@ const runController = require('../controllers/runController');
 const { authenticateToken } = require('../middleware/auth');
 const { runValidationRules, runIdValidation } = require('../middleware/runValidation');
 
-// All run routes require authentication
+// Apply auth middleware to all routes
 router.use(authenticateToken);
 
-// Get all runs
-router.get('/', runController.getAllRuns);
-
-// Get single run
-router.get('/:id', runIdValidation, runController.getRun);
-
-// Create new run
+// Create a new run
 router.post('/', runValidationRules, runController.createRun);
 
-// Update run
-router.put('/:id', [...runIdValidation, ...runValidationRules], runController.updateRun);
+// Get all runs for the authenticated user
+router.get('/', runController.getAllRuns);
 
-// Delete run
+// Get a specific run
+router.get('/:id', runIdValidation, runController.getRun);
+
+// Update a run
+router.put('/:id', runValidationRules, runController.updateRun);
+
+// Delete a run
 router.delete('/:id', runIdValidation, runController.deleteRun);
 
 module.exports = router; 

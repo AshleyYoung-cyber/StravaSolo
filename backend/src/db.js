@@ -3,9 +3,15 @@ const { Pool } = require('pg');
 const pool = new Pool({
   user: process.env.DB_USER || 'abbielove',
   host: process.env.DB_HOST || 'localhost',
-  database: 'solostrava',
+  database: 'solorun_dev',
   password: process.env.DB_PASSWORD || '',
   port: process.env.DB_PORT || 5432,
+});
+
+// Add error handling and logging
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
 });
 
 // Test the connection

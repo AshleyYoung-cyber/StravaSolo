@@ -4,48 +4,62 @@ const runController = {
   // Get all runs for logged in user
   async getAllRuns(req, res) {
     try {
-      console.log('Fetching runs for user:', req.user?.id);
-      console.log('Full user object:', req.user);  // Check if user is properly authenticated
+      const query = `
+        SELECT 
+          id,
+          distance,
+          distance_unit::text as distance_unit,
+          EXTRACT(EPOCH FROM duration)::integer as duration,
+          date,
+          type,
+          location,
+          notes,
+          created_at,
+          updated_at
+        FROM runs 
+        WHERE user_id = $1 
+        ORDER BY created_at DESC
+      `;
       
-      if (!req.user || !req.user.id) {
-        throw new Error('User not authenticated');
-      }
-
-      const result = await pool.query(
-        'SELECT * FROM runs WHERE user_id = $1 ORDER BY date DESC',
-        [req.user.id]
-      );
-      
-      console.log('Query result:', result);
-      console.log('Runs found:', result.rows.length);
+      const result = await pool.query(query, [req.user.id]);
+      console.log('getAllRuns result:', JSON.stringify(result.rows[0], null, 2));
       res.json(result.rows);
     } catch (error) {
-      console.error('Full error details:', error);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({ 
-        error: 'Error fetching runs', 
-        details: error.message,
-        stack: error.stack 
-      });
+      console.error('Error fetching runs:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 
   // Get single run
   async getRun(req, res) {
     try {
-      const result = await pool.query(
-        'SELECT * FROM runs WHERE id = $1 AND user_id = $2',
-        [req.params.id, req.user.id]
-      );
-      
+      const query = `
+        SELECT 
+          id,
+          distance,
+          distance_unit::text as distance_unit,
+          EXTRACT(EPOCH FROM duration)::integer as duration,
+          date,
+          type,
+          location,
+          notes,
+          created_at,
+          updated_at
+        FROM runs 
+        WHERE id = $1 AND user_id = $2
+      `;
+
+      const result = await pool.query(query, [req.params.id, req.user.id]);
+
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'Run not found' });
       }
-      
+
+      console.log('getRun result:', JSON.stringify(result.rows[0], null, 2));
       res.json(result.rows[0]);
     } catch (error) {
       console.error('Error fetching run:', error);
-      res.status(500).json({ error: 'Error fetching run', details: error.message });
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -53,82 +67,106 @@ const runController = {
   async createRun(req, res) {
     const client = await pool.connect();
     try {
-      console.log('Received run data:', req.body);
-      
       await client.query('BEGIN');
       
-      const { distance, duration, date, type, location, notes } = req.body;
-      const userId = req.user.id;
-
-      // Insert the run without average_pace and calories
-      const runResult = await client.query(
-        `INSERT INTO runs (user_id, distance, duration, date, type, location, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [userId, distance, duration, date, type, location, notes]
-      );
+      const { distance, duration, date, type, location, notes, distance_unit } = req.body;
       
-      const run = runResult.rows[0];
-      console.log('Created run:', run);
+      // First insert the run
+      const runQuery = `
+        INSERT INTO runs (
+          user_id,
+          distance,
+          duration,
+          date,
+          type,
+          location,
+          notes,
+          distance_unit
+        )
+        VALUES (
+          $1, $2, $3::interval, $4, $5, $6, $7, 
+          $8::distance_unit_type
+        )
+        RETURNING 
+          id,
+          distance,
+          distance_unit::text as distance_unit,
+          EXTRACT(EPOCH FROM duration)::integer as duration,
+          date,
+          type,
+          location,
+          notes,
+          created_at,
+          updated_at
+      `;
 
-      // Get all active (uncompleted) goals for this user
-      const activeGoals = await client.query(
-        `SELECT * FROM goals 
-         WHERE user_id = $1 
-         AND id NOT IN (
-           SELECT goal_id FROM completed_goals WHERE user_id = $1
-         )`,
-        [userId]
-      );
+      const runResult = await client.query(runQuery, [
+        req.user.id,
+        distance,
+        `${duration} seconds`,
+        date,
+        type,
+        location,
+        notes,
+        distance_unit
+      ]);
 
-      // Check each goal to see if it's completed by this run
-      for (const goal of activeGoals.rows) {
-        let isCompleted = false;
-
-        switch (goal.type) {
-          case 'RACE':
-            // For race goals, check if the distance matches and it's marked as a race
-            if (goal.data.distance === run.distance && run.type === 'race') {
-              isCompleted = true;
-            }
-            break;
-
-          case 'DISTANCE':
-            if (goal.data.timeframe === 'PR') {
-              // For PR goals, check if the distance matches and time is better
-              if (goal.data.distance === run.distance) {
-                const runTime = run.duration; // Assuming duration is stored in a comparable format
-                if (runTime < goal.data.time) {
-                  isCompleted = true;
-                }
-              }
-            }
-            // Add other distance goal types here
-            break;
-        }
-
-        // If goal is completed, add to completed_goals table
-        if (isCompleted) {
+      // Fetch active goals for the user
+      const goalsQuery = `
+        SELECT 
+          id,
+          target_distance,
+          distance_unit::text as distance_unit,
+          start_date,
+          end_date,
+          current_distance
+        FROM goals 
+        WHERE user_id = $1 
+          AND start_date <= $2 
+          AND end_date >= $2
+          AND completed = false`;
+      
+      const goalsResult = await client.query(goalsQuery, [req.user.id, date]);
+      
+      // Update goals if necessary
+      for (const goal of goalsResult.rows) {
+        if (goal.distance_unit === distance_unit) {
+          // Units match, add distance directly
+          const newDistance = goal.current_distance + distance;
+          
           await client.query(
-            `INSERT INTO completed_goals (goal_id, user_id, completing_run_id)
-             VALUES ($1, $2, $3)`,
-            [goal.id, userId, run.id]
+            `UPDATE goals 
+             SET current_distance = $1,
+                 completed = CASE WHEN $1 >= target_distance THEN true ELSE false END
+             WHERE id = $2`,
+            [newDistance, goal.id]
+          );
+        } else {
+          // Units don't match, convert before adding
+          const convertedDistance = distance_unit === 'km' 
+            ? distance * 0.621371  // km to miles
+            : distance * 1.60934;  // miles to km
+            
+          const newDistance = goal.current_distance + convertedDistance;
+          
+          await client.query(
+            `UPDATE goals 
+             SET current_distance = $1,
+                 completed = CASE WHEN $1 >= target_distance THEN true ELSE false END
+             WHERE id = $2`,
+            [newDistance, goal.id]
           );
         }
       }
 
       await client.query('COMMIT');
       
-      res.status(201).json({
-        run,
-        message: 'Run logged successfully'
-      });
+      console.log('Run created and goals updated:', JSON.stringify(runResult.rows[0], null, 2));
+      res.status(201).json(runResult.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Error in createRun:', error);
-      res.status(400).json({
-        error: error.message
-      });
+      res.status(400).json({ error: error.message });
     } finally {
       client.release();
     }
