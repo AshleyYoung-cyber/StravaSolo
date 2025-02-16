@@ -5,6 +5,7 @@ import { notifications } from '@mantine/notifications';
 import goalService from '../services/goalService';
 import Header from '../components/Header';
 import { IconTrash } from '@tabler/icons-react';
+import GoalCard from '../components/GoalCard';
 
 export default function Goals() {
   const navigate = useNavigate();
@@ -13,16 +14,12 @@ export default function Goals() {
   useEffect(() => {
     const fetchGoals = async () => {
       try {
-        const data = await goalService.getAllGoals();
-        console.log('Fetched goals:', data);
-        setGoals(data);
+        console.log('Fetching goals...');
+        const fetchedGoals = await goalService.getAllGoals();
+        console.log('Fetched goals:', fetchedGoals);
+        setGoals(fetchedGoals);
       } catch (error) {
         console.error('Error fetching goals:', error);
-        notifications.show({
-          title: 'Error',
-          message: 'Failed to fetch goals',
-          color: 'red'
-        });
       }
     };
 
@@ -110,18 +107,7 @@ export default function Goals() {
             <Text>No goals yet. Click "Add New Goal" to create one!</Text>
           ) : (
             goals.map((goal) => (
-              <Card key={goal.id} shadow="sm" p="lg" mb="md">
-                <Group position="apart">
-                  <div>{renderGoalContent(goal)}</div>
-                  <ActionIcon 
-                    color="red" 
-                    onClick={() => handleDelete(goal.id)}
-                    variant="subtle"
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-              </Card>
+              <GoalCard key={goal.id} goal={goal} />
             ))
           )}
         </Container>

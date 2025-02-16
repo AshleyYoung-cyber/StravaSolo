@@ -1,9 +1,32 @@
-import { AppShell, Container, Title, Grid, Card, Text, Group, Button } from '@mantine/core';
+import { useState, useEffect } from 'react';
+import { AppShell, Container, Title, Grid, Loader, Text } from '@mantine/core';
 import Header from '../components/Header';
-import { useNavigate } from 'react-router-dom';
+import GoalProgress from '../components/GoalProgress';
+import RecentRuns from '../components/RecentRuns';
+import goalService from '../services/goalService';
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchGoals = async () => {
+      try {
+        console.log('Fetching goals...');
+        const activeGoals = await goalService.getActiveGoals();
+        console.log('Received goals:', activeGoals);
+        setGoals(activeGoals);
+      } catch (err) {
+        console.error('Error fetching goals:', err);
+        setError('Failed to load goals');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGoals();
+  }, []);
 
   return (
     <AppShell>
@@ -12,41 +35,29 @@ export default function Dashboard() {
       </AppShell.Header>
 
       <AppShell.Main>
-        <Container size="lg">
-          <Title order={2} mb="xl">Recent Activity</Title>
-          
+        <Container size="lg" mt="xl">
+          <Title order={1} mb="xl">Dashboard</Title>
+
           <Grid>
-            {/* Recent Runs */}
-            <Grid.Col span={4}>
-              <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Title order={3} mb="md">Recent Runs</Title>
-                <Text c="dimmed" mb="md">No recent runs</Text>
-                <Button variant="light" color="blue" fullWidth onClick={() => navigate('/runs')}>
-                  View All Runs
-                </Button>
-              </Card>
+            {/* Goals Section */}
+            <Grid.Col span={12}>
+              <Title order={2} size="h3" mb="md">Active Goals</Title>
+              {loading ? (
+                <Loader />
+              ) : error ? (
+                <Text color="red">{error}</Text>
+              ) : goals.length > 0 ? (
+                goals.map(goal => (
+                  <GoalProgress key={goal.id} goal={goal} />
+                ))
+              ) : (
+                <Text color="dimmed">No active goals</Text>
+              )}
             </Grid.Col>
 
-            {/* Recent Workouts */}
-            <Grid.Col span={4}>
-              <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Title order={3} mb="md">Recent Workouts</Title>
-                <Text c="dimmed" mb="md">No recent workouts</Text>
-                <Button variant="light" color="blue" fullWidth onClick={() => navigate('/workouts')}>
-                  View All Workouts
-                </Button>
-              </Card>
-            </Grid.Col>
-
-            {/* Active Goals */}
-            <Grid.Col span={4}>
-              <Card shadow="sm" padding="lg" radius="md" withBorder>
-                <Title order={3} mb="md">Active Goals</Title>
-                <Text c="dimmed" mb="md">No active goals</Text>
-                <Button variant="light" color="blue" fullWidth onClick={() => navigate('/goals')}>
-                  View All Goals
-                </Button>
-              </Card>
+            {/* Recent Runs Section */}
+            <Grid.Col span={12} mt="xl">
+              <RecentRuns />
             </Grid.Col>
           </Grid>
         </Container>
