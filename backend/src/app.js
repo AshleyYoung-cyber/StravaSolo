@@ -4,6 +4,7 @@ const goalsRouter = require('./routes/goals');
 const authRouter = require('./routes/auth');
 const runRoutes = require('./routes/runs');
 const testRoutes = require('./routes/test');
+const goalRoutes = require('./routes/goalRoutes');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/runs', runRoutes);
 app.use('/api/test', testRoutes);
+app.use('/goals', goalRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

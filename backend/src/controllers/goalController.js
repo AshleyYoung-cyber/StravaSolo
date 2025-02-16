@@ -33,16 +33,18 @@ const goalController = {
   // Get all goals for logged in user
   async getAllGoals(req, res) {
     try {
-      const userId = req.user.id;
       const query = `
-        SELECT * FROM goals 
-        WHERE user_id = $1 
-        ORDER BY created_at DESC
+        SELECT id, type, data, completed
+        FROM goals
+        WHERE user_id = $1
+        ORDER BY (data->>'end_date')::date DESC
       `;
-      const { rows } = await pool.query(query, [userId]);
-      res.json(rows);
+      
+      const result = await pool.query(query, [req.user.id]);
+      res.json(result.rows);
     } catch (error) {
-      handleDatabaseError(error, res);
+      console.error('Error fetching goals:', error);
+      res.status(500).json({ error: error.message });
     }
   },
 
@@ -69,34 +71,44 @@ const goalController = {
 
   // Create new goal
   async createGoal(req, res) {
-    const client = await pool.connect();
     try {
-      console.log('Received request body:', req.body);
-      console.log('User ID:', req.user.id);
+      console.log('=== CREATE GOAL DEBUG ===');
+      console.log('Request body:', req.body);
       
-      await client.query('BEGIN');
+      const query = `
+        INSERT INTO goals (
+          user_id,
+          type,
+          data,
+          completed
+        )
+        VALUES (
+          $1,
+          'distance',
+          $2::jsonb,
+          false
+        )
+        RETURNING id, type, data, completed
+      `;
+
+      // Map the incoming fields to the expected structure
+      const goalData = {
+        target_distance: parseFloat(req.body.target),
+        distance_unit: req.body.unit,
+        start_date: req.body.startDate,
+        end_date: req.body.endDate,
+        current_distance: 0
+      };
+
+      console.log('Goal data to insert:', goalData);
       
-      // Separate type from the rest of the data
-      const { type, ...restData } = req.body;
-
-      const result = await client.query(
-        'INSERT INTO goals (user_id, type, data) VALUES ($1, $2, $3) RETURNING *',
-        [req.user.id, type, restData]
-      );
-
-      await client.query('COMMIT');
+      const result = await pool.query(query, [req.user.id, goalData]);
+      console.log('Created goal:', result.rows[0]);
+      
       res.status(201).json(result.rows[0]);
     } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Error in createGoal:', error);
-      res.status(400).json({
-        errors: [{
-          msg: error.message,
-          details: error.stack
-        }]
-      });
-    } finally {
-      client.release();
+      console.error('Error creating goal:', error);
+      res.status(400).json({ error: error.message });
     }
   },
 
@@ -129,45 +141,55 @@ const goalController = {
 
   // Delete goal
   async deleteGoal(req, res) {
-    const client = await pool.connect();
+    console.log('=== DELETE GOAL DEBUG ===');
+    console.log('req.params.id:', req.params.id);
+    console.log('req.user.id:', req.user.id);
+    console.log('req.user:', req.user);
+    
     try {
-      const goalId = req.params.id;
-      const userId = req.user.id;
-
-      console.log('Attempting to delete goal:', { goalId, userId });
-
-      await client.query('BEGIN');
-
-      // First check if the goal exists and belongs to the user
-      const checkResult = await client.query(
-        'SELECT * FROM goals WHERE id = $1 AND user_id = $2',
-        [goalId, userId]
-      );
-
-      if (checkResult.rows.length === 0) {
-        throw new Error('Goal not found or unauthorized');
-      }
-
-      // Delete the goal
-      const result = await client.query(
-        'DELETE FROM goals WHERE id = $1 AND user_id = $2 RETURNING *',
-        [goalId, userId]
-      );
-
-      await client.query('COMMIT');
+      const { id } = req.params;
       
-      console.log('Goal deleted successfully');
-      res.status(200).json({ message: 'Goal deleted successfully' });
+      const query = `
+        DELETE FROM goals 
+        WHERE id = $1 AND user_id = $2 
+        RETURNING *
+      `;
+      
+      const result = await pool.query(query, [id, req.user.id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Goal not found' });
+      }
+      
+      res.json({ message: 'Goal deleted successfully' });
     } catch (error) {
-      await client.query('ROLLBACK');
-      console.error('Error in deleteGoal:', error);
-      res.status(error.message === 'Goal not found or unauthorized' ? 404 : 400).json({
-        errors: [{
-          msg: error.message
-        }]
-      });
-    } finally {
-      client.release();
+      console.error('Error deleting goal:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async getActiveGoals(req, res) {
+    try {
+      console.log('=== GET ACTIVE GOALS DEBUG ===');
+      console.log('User ID:', req.user.id);
+      
+      const query = `
+        SELECT id, type, data, completed
+        FROM goals
+        WHERE user_id = $1
+          AND type = 'distance'
+          AND (data->>'start_date')::date <= CURRENT_DATE
+          AND (data->>'end_date')::date >= CURRENT_DATE
+        ORDER BY (data->>'end_date')::date ASC
+      `;
+      
+      const result = await pool.query(query, [req.user.id]);
+      console.log('Active goals found:', result.rows);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching active goals:', error);
+      res.status(500).json({ error: error.message });
     }
   }
 };

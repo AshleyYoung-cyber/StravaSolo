@@ -67,6 +67,8 @@ const runController = {
   async createRun(req, res) {
     const client = await pool.connect();
     try {
+      console.log('=== START CREATE RUN ===');
+      
       await client.query('BEGIN');
       
       const { distance, duration, date, type, location, notes, distance_unit } = req.body;
@@ -111,61 +113,64 @@ const runController = {
         distance_unit
       ]);
 
-      // Fetch active goals for the user
-      const goalsQuery = `
-        SELECT 
-          id,
-          target_distance,
-          distance_unit::text as distance_unit,
-          start_date,
-          end_date,
-          current_distance
-        FROM goals 
-        WHERE user_id = $1 
-          AND start_date <= $2 
-          AND end_date >= $2
-          AND completed = false`;
-      
-      const goalsResult = await client.query(goalsQuery, [req.user.id, date]);
-      
-      // Update goals if necessary
-      for (const goal of goalsResult.rows) {
-        if (goal.distance_unit === distance_unit) {
-          // Units match, add distance directly
-          const newDistance = goal.current_distance + distance;
+      console.log('=== RUN CREATED ===');
+      console.log('Run data:', JSON.stringify(runResult.rows[0], null, 2));
+
+// Fetch active goals for the user
+const goalsQuery = `
+SELECT
+  id,
+  data
+FROM goals
+WHERE user_id = $1
+  AND type = 'distance'
+  AND (data->>'start_date')::date <= $2::date  -- Corrected to start_date
+  AND (data->>'end_date')::date >= $2::date    -- Corrected to end_date
+  AND completed = false`;
+
+const goalsResult = await client.query(goalsQuery, [req.user.id, date]);
+
+// Update goals if necessary
+for (const goal of goalsResult.rows) {
+const goalData = goal.data;
+
+// Check if the units match. CRUCIAL for accurate updates.
+if (goalData.distance_unit === distance_unit) { // Corrected to distance_unit
+  const currentDistance = parseFloat(goalData.current_distance || 0);
+  const newDistance = currentDistance + parseFloat(distance);
+
+  // Update the goal's current_distance and completed status
+  await client.query(
+    `UPDATE goals
+     SET data = jsonb_set(data, '{current_distance}', $1::jsonb),
+         completed = ($1 >= (data->>'target_distance')::float) -- Corrected to target_distance
+     WHERE id = $2`,
+    [newDistance, goal.id]
+  );
+}
+}
           
           await client.query(
             `UPDATE goals 
-             SET current_distance = $1,
-                 completed = CASE WHEN $1 >= target_distance THEN true ELSE false END
+             SET data = jsonb_set(
+               data,
+               '{current_distance}',
+               to_jsonb($1)
+             ),
+             completed = CAST($1 AS numeric) >= CAST((data->>'target_distance') AS numeric)
              WHERE id = $2`,
             [newDistance, goal.id]
           );
-        } else {
-          // Units don't match, convert before adding
-          const convertedDistance = distance_unit === 'km' 
-            ? distance * 0.621371  // km to miles
-            : distance * 1.60934;  // miles to km
-            
-          const newDistance = goal.current_distance + convertedDistance;
           
-          await client.query(
-            `UPDATE goals 
-             SET current_distance = $1,
-                 completed = CASE WHEN $1 >= target_distance THEN true ELSE false END
-             WHERE id = $2`,
-            [newDistance, goal.id]
-          );
-        }
-      }
+          console.log('Goal updated successfully');
 
       await client.query('COMMIT');
       
-      console.log('Run created and goals updated:', JSON.stringify(runResult.rows[0], null, 2));
       res.status(201).json(runResult.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Error in createRun:', error);
+      console.error('=== ERROR IN CREATE RUN ===');
+      console.error(error);
       res.status(400).json({ error: error.message });
     } finally {
       client.release();
